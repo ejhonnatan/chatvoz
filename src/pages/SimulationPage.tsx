@@ -1,0 +1,357 @@
+import { useState, useRef, useEffect } from 'react';
+import { 
+  Phone, 
+  PhoneOff, 
+  Mic, 
+  MicOff, 
+  Volume2, 
+  VolumeX, 
+  RefreshCw,
+  PlayCircle,
+  MessageSquare
+} from 'lucide-react';
+import { blink } from '../lib/blink';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import { toast } from 'react-hot-toast';
+import { cn } from '../lib/utils';
+
+interface Survey {
+  id: string;
+  name: string;
+  systemPrompt: string;
+}
+
+export function SimulationPage() {
+  const [surveys, setSurveys] = useState<Survey[]>([]);
+  const [selectedSurvey, setSelectedSurvey] = useState<string>('');
+  const [status, setStatus] = useState<'idle' | 'calling' | 'connected' | 'ended'>('idle');
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant' | 'system', content: string }[]>([]);
+  const [transcription, setTranscription] = useState('');
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    fetchSurveys();
+    return () => {
+      stopStream();
+    };
+  }, []);
+
+  const fetchSurveys = async () => {
+    try {
+      const data = await blink.db.surveys.list();
+      setSurveys(data as Survey[]);
+      if (data.length > 0) setSelectedSurvey(data[0].id);
+    } catch (error) {
+      toast.error('Failed to load surveys');
+    }
+  };
+
+  const stopStream = () => {
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    mediaRecorderRef.current?.stop();
+  };
+
+  const startCall = async () => {
+    if (!selectedSurvey) {
+      toast.error('Please select a survey');
+      return;
+    }
+
+    const survey = surveys.find(s => s.id === selectedSurvey);
+    if (!survey) return;
+
+    setStatus('calling');
+    setMessages([{ role: 'system', content: survey.systemPrompt }]);
+    
+    // Simulate connection delay
+    setTimeout(async () => {
+      setStatus('connected');
+      // Initial greeting from AI
+      await processAIResponse("Say hello and start the survey naturally.");
+    }, 2000);
+  };
+
+  const endCall = () => {
+    setStatus('ended');
+    stopStream();
+    setIsRecording(false);
+    setIsSpeaking(false);
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+  };
+
+  const processAIResponse = async (userText: string) => {
+    setIsProcessing(true);
+    try {
+      const newMessages = [...messages, { role: 'user' as const, content: userText }];
+      setMessages(newMessages);
+
+      const { text } = await blink.ai.generateText({
+        messages: newMessages,
+        maxTokens: 150
+      });
+
+      setMessages(prev => [...prev, { role: 'assistant', content: text }]);
+      await speak(text);
+    } catch (error) {
+      console.error('AI Processing error:', error);
+      toast.error('AI processing failed');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const speak = async (text: string) => {
+    setIsSpeaking(true);
+    try {
+      const { url } = await blink.ai.generateSpeech({
+        text,
+        voice: 'nova'
+      });
+      
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => {
+        setIsSpeaking(false);
+        // After AI finishes speaking, automatically start listening
+        if (status === 'connected') {
+          startRecording();
+        }
+      };
+      await audio.play();
+    } catch (error) {
+      console.error('TTS error:', error);
+      setIsSpeaking(false);
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      chunksRef.current = [];
+      
+      recorder.ondataavailable = (e) => {
+        chunksRef.current.push(e.data);
+      };
+      
+      recorder.onstop = handleRecordingComplete;
+      recorder.start();
+      setIsRecording(true);
+      setTranscription('Listening...');
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      toast.error('Microphone access denied');
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    setIsRecording(false);
+  };
+
+  const handleRecordingComplete = async () => {
+    setIsProcessing(true);
+    setTranscription('Transcribing...');
+    
+    try {
+      const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+      const base64 = await blobToBase64(audioBlob);
+      
+      const { text } = await blink.ai.transcribeAudio({
+        audio: base64,
+        language: 'en' // Or detected language
+      });
+      
+      setTranscription(text);
+      if (text.trim()) {
+        await processAIResponse(text);
+      } else {
+        // If silence, try listening again or prompt user
+        setTranscription('Silence detected. Try again.');
+        setTimeout(() => {
+          if (status === 'connected') startRecording();
+        }, 1500);
+      }
+    } catch (error) {
+      console.error('Transcription failed:', error);
+      toast.error('Failed to transcribe audio');
+    } finally {
+      setIsProcessing(false);
+      chunksRef.current = [];
+    }
+  };
+
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve((reader.result as string).split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">AI Voice Simulator</h1>
+        <p className="text-muted-foreground">Test your survey bot directly in the browser before launching campaigns.</p>
+      </div>
+
+      <div className="grid gap-8 md:grid-cols-2">
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configuration</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Select Survey</label>
+                <Select value={selectedSurvey} onValueChange={setSelectedSurvey} disabled={status !== 'idle' && status !== 'ended'}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a survey..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {surveys.map(s => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button 
+                className="w-full h-12 text-lg font-semibold" 
+                onClick={status === 'connected' || status === 'calling' ? endCall : startCall}
+                variant={status === 'connected' || status === 'calling' ? 'destructive' : 'default'}
+              >
+                {status === 'idle' || status === 'ended' ? (
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-5 w-5" />
+                    Simulate Call
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <PhoneOff className="h-5 w-5" />
+                    End Call
+                  </div>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {status !== 'idle' && (
+            <Card className={cn(
+              "transition-all duration-500",
+              status === 'connected' ? "border-emerald-500 shadow-lg shadow-emerald-500/10" : ""
+            )}>
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center justify-center space-y-8 py-8">
+                  <div className="relative">
+                    <div className={cn(
+                      "absolute -inset-4 rounded-full blur-xl transition-all duration-500",
+                      isSpeaking ? "bg-emerald-500/20 animate-pulse" : 
+                      isRecording ? "bg-primary/20 animate-pulse" : 
+                      "bg-transparent"
+                    )} />
+                    <div className={cn(
+                      "relative h-32 w-32 rounded-full border-4 flex items-center justify-center transition-all duration-300",
+                      status === 'calling' ? "animate-bounce border-primary/20" : 
+                      isSpeaking ? "border-emerald-500 bg-emerald-50" : 
+                      isRecording ? "border-primary bg-primary/5 scale-110" : 
+                      "border-secondary"
+                    )}>
+                      {isSpeaking ? (
+                        <Volume2 className="h-12 w-12 text-emerald-500" />
+                      ) : isRecording ? (
+                        <Mic className="h-12 w-12 text-primary" />
+                      ) : (
+                        <Phone className="h-12 w-12 text-muted-foreground" />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="text-center space-y-2">
+                    <h3 className="text-xl font-bold">
+                      {status === 'calling' ? 'Calling...' : 
+                       isSpeaking ? 'AI Speaking' : 
+                       isRecording ? 'Listening to you' : 
+                       isProcessing ? 'Thinking...' : 
+                       'Connected'}
+                    </h3>
+                    <p className="text-sm text-muted-foreground font-mono">
+                      {status === 'calling' ? 'Establishing secure connection...' : 
+                       isRecording ? 'Go ahead, speak now' : 
+                       transcription || 'Call in progress'}
+                    </p>
+                  </div>
+
+                  {status === 'connected' && !isSpeaking && !isRecording && !isProcessing && (
+                    <Button onClick={startRecording} variant="outline" className="gap-2">
+                      <Mic className="h-4 w-4" />
+                      Speak Now
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        <div className="space-y-6">
+          <Card className="h-[600px] flex flex-col">
+            <CardHeader className="border-b">
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                Live Transcript
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+              {messages.filter(m => m.role !== 'system').length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-center p-8">
+                  <RefreshCw className="h-12 w-12 mb-4 opacity-20" />
+                  <p>Transcript will appear here once the call starts.</p>
+                </div>
+              ) : (
+                messages.filter(m => m.role !== 'system').map((msg, i) => (
+                  <div key={i} className={cn(
+                    "flex flex-col space-y-1 max-w-[80%]",
+                    msg.role === 'assistant' ? "mr-auto" : "ml-auto items-end"
+                  )}>
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">
+                      {msg.role === 'assistant' ? 'AI Agent' : 'You'}
+                    </span>
+                    <div className={cn(
+                      "rounded-lg px-3 py-2 text-sm",
+                      msg.role === 'assistant' ? "bg-secondary" : "bg-primary text-primary-foreground"
+                    )}>
+                      {msg.content}
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
