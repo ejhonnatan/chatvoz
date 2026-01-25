@@ -7,22 +7,56 @@ import {
   ArrowUpRight,
   ArrowDownRight
 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { blink } from '../lib/blink';
 
 export function DashboardPage() {
+  const { t } = useTranslation();
+  const [counts, setCounts] = useState({ surveys: 0, contacts: 0, results: 0 });
+  const [recentResults, setRecentResults] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const [surveysCount, contactsCount, resultsCount, recent] = await Promise.all([
+          blink.db.surveys.count(),
+          blink.db.contacts.count(),
+          blink.db.surveyResults.count(),
+          blink.db.surveyResults.list({ 
+            limit: 5, 
+            orderBy: { createdAt: 'desc' } 
+          })
+        ]);
+        
+        setCounts({ 
+          surveys: Number(surveysCount), 
+          contacts: Number(contactsCount), 
+          results: Number(resultsCount) 
+        });
+        setRecentResults(recent as any[]);
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      }
+    };
+    
+    fetchDashboardData();
+  }, []);
+
   const stats = [
-    { label: 'Total Surveys', value: '12', icon: ClipboardList, trend: '+2 this week', positive: true },
-    { label: 'Active Contacts', value: '1,284', icon: Users, trend: '+12% from last month', positive: true },
-    { label: 'Calls Made', value: '8,432', icon: PhoneCall, trend: '+24% from last month', positive: true },
-    { label: 'Completion Rate', value: '64.2%', icon: BarChart3, trend: '-2.1% from last month', positive: false },
+    { label: t('dashboard.totalSurveys'), value: counts.surveys.toString(), icon: ClipboardList, trend: '+2 this week', positive: true },
+    { label: t('dashboard.activeContacts'), value: counts.contacts.toLocaleString(), icon: Users, trend: '+12% from last month', positive: true },
+    { label: t('dashboard.callsMade'), value: counts.results.toLocaleString(), icon: PhoneCall, trend: '+24% from last month', positive: true },
+    { label: t('dashboard.completionRate'), value: '64.2%', icon: BarChart3, trend: '-2.1% from last month', positive: false },
   ];
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Overview</h1>
-        <p className="text-muted-foreground">Welcome back! Here's what's happening with your surveys.</p>
+        <h1 className="text-3xl font-bold tracking-tight">{t('dashboard.title')}</h1>
+        <p className="text-muted-foreground">{t('dashboard.subtitle')}</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -57,29 +91,35 @@ export function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="lg:col-span-4">
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
+            <CardTitle>{t('dashboard.recentActivity')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="flex items-center gap-4">
-                  <div className="h-9 w-9 rounded-full bg-secondary flex items-center justify-center">
-                    <TrendingUp className="h-5 w-5 text-muted-foreground" />
+              {recentResults.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-8 text-center italic">No activity yet.</p>
+              ) : (
+                recentResults.map((result) => (
+                  <div key={result.id} className="flex items-center gap-4">
+                    <div className="h-9 w-9 rounded-full bg-secondary flex items-center justify-center">
+                      <TrendingUp className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{t('dashboard.surveyCompleted')}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Contact ID {result.contactId} • {new Date(result.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <Button variant="ghost" size="sm">{t('common.view')}</Button>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">Customer Satisfaction Survey completed</p>
-                    <p className="text-xs text-muted-foreground">Contact +1 234 567 890 • 2 minutes ago</p>
-                  </div>
-                  <Button variant="ghost" size="sm">View</Button>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
         
         <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle>Active Campaigns</CardTitle>
+            <CardTitle>{t('dashboard.activeCampaigns')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">

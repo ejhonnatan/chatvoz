@@ -8,8 +8,10 @@ import {
   VolumeX, 
   RefreshCw,
   PlayCircle,
-  MessageSquare
+  MessageSquare,
+  Globe
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { blink } from '../lib/blink';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -30,6 +32,7 @@ interface Survey {
 }
 
 export function SimulationPage() {
+  const { t, i18n } = useTranslation();
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [selectedSurvey, setSelectedSurvey] = useState<string>('');
   const [status, setStatus] = useState<'idle' | 'calling' | 'connected' | 'ended'>('idle');
@@ -57,7 +60,7 @@ export function SimulationPage() {
       setSurveys(data as Survey[]);
       if (data.length > 0) setSelectedSurvey(data[0].id);
     } catch (error) {
-      toast.error('Failed to load surveys');
+      toast.error(t('common.loading'));
     }
   };
 
@@ -68,7 +71,7 @@ export function SimulationPage() {
 
   const startCall = async () => {
     if (!selectedSurvey) {
-      toast.error('Please select a survey');
+      toast.error(t('simulation.chooseSurvey'));
       return;
     }
 
@@ -76,13 +79,22 @@ export function SimulationPage() {
     if (!survey) return;
 
     setStatus('calling');
-    setMessages([{ role: 'system', content: survey.systemPrompt }]);
+    
+    // Domain-specific system prompt enhancement based on selected language
+    const languageInstruction = i18n.language === 'es' 
+      ? "Please conduct the entire survey in Spanish." 
+      : "Please conduct the entire survey in English.";
+      
+    setMessages([{ role: 'system', content: `${survey.systemPrompt}\n\n${languageInstruction}` }]);
     
     // Simulate connection delay
     setTimeout(async () => {
       setStatus('connected');
       // Initial greeting from AI
-      await processAIResponse("Say hello and start the survey naturally.");
+      const initialPrompt = i18n.language === 'es' 
+        ? "Saluda y comienza la encuesta de forma natural."
+        : "Say hello and start the survey naturally.";
+      await processAIResponse(initialPrompt);
     }, 2000);
   };
 
@@ -122,7 +134,9 @@ export function SimulationPage() {
     try {
       const { url } = await blink.ai.generateSpeech({
         text,
-        voice: 'nova'
+        voice: 'nova',
+        // Optional: you could choose a voice based on language if needed, 
+        // but OpenAI voices like 'nova' are multi-lingual.
       });
       
       const audio = new Audio(url);
@@ -172,7 +186,7 @@ export function SimulationPage() {
 
   const handleRecordingComplete = async () => {
     setIsProcessing(true);
-    setTranscription('Transcribing...');
+    setTranscription(t('simulation.thinking'));
     
     try {
       const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
@@ -180,7 +194,7 @@ export function SimulationPage() {
       
       const { text } = await blink.ai.transcribeAudio({
         audio: base64,
-        language: 'en' // Or detected language
+        language: i18n.language // Respect selected UI language for transcription
       });
       
       setTranscription(text);
@@ -214,22 +228,22 @@ export function SimulationPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">AI Voice Simulator</h1>
-        <p className="text-muted-foreground">Test your survey bot directly in the browser before launching campaigns.</p>
+        <h1 className="text-3xl font-bold tracking-tight">{t('simulation.title')}</h1>
+        <p className="text-muted-foreground">{t('simulation.subtitle')}</p>
       </div>
 
       <div className="grid gap-8 md:grid-cols-2">
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Configuration</CardTitle>
+              <CardTitle>{t('simulation.configTitle')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Select Survey</label>
+                <label className="text-sm font-medium">{t('simulation.selectSurvey')}</label>
                 <Select value={selectedSurvey} onValueChange={setSelectedSurvey} disabled={status !== 'idle' && status !== 'ended'}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Choose a survey..." />
+                    <SelectValue placeholder={t('simulation.chooseSurvey')} />
                   </SelectTrigger>
                   <SelectContent>
                     {surveys.map(s => (
@@ -246,12 +260,12 @@ export function SimulationPage() {
                 {status === 'idle' || status === 'ended' ? (
                   <div className="flex items-center gap-2">
                     <Phone className="h-5 w-5" />
-                    Simulate Call
+                    {t('simulation.simulateCall')}
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
                     <PhoneOff className="h-5 w-5" />
-                    End Call
+                    {t('simulation.endCall')}
                   </div>
                 )}
               </Button>
@@ -291,15 +305,15 @@ export function SimulationPage() {
 
                   <div className="text-center space-y-2">
                     <h3 className="text-xl font-bold">
-                      {status === 'calling' ? 'Calling...' : 
-                       isSpeaking ? 'AI Speaking' : 
-                       isRecording ? 'Listening to you' : 
-                       isProcessing ? 'Thinking...' : 
-                       'Connected'}
+                      {status === 'calling' ? t('simulation.calling') : 
+                       isSpeaking ? t('simulation.aiSpeaking') : 
+                       isRecording ? t('simulation.listening') : 
+                       isProcessing ? t('simulation.thinking') : 
+                       t('simulation.connected')}
                     </h3>
                     <p className="text-sm text-muted-foreground font-mono">
                       {status === 'calling' ? 'Establishing secure connection...' : 
-                       isRecording ? 'Go ahead, speak now' : 
+                       isRecording ? t('simulation.goAhead') : 
                        transcription || 'Call in progress'}
                     </p>
                   </div>
@@ -307,7 +321,7 @@ export function SimulationPage() {
                   {status === 'connected' && !isSpeaking && !isRecording && !isProcessing && (
                     <Button onClick={startRecording} variant="outline" className="gap-2">
                       <Mic className="h-4 w-4" />
-                      Speak Now
+                      {t('simulation.goAhead')}
                     </Button>
                   )}
                 </div>
@@ -321,14 +335,14 @@ export function SimulationPage() {
             <CardHeader className="border-b">
               <CardTitle className="flex items-center gap-2">
                 <MessageSquare className="h-5 w-5" />
-                Live Transcript
+                {t('simulation.liveTranscript')}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.filter(m => m.role !== 'system').length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-center p-8">
                   <RefreshCw className="h-12 w-12 mb-4 opacity-20" />
-                  <p>Transcript will appear here once the call starts.</p>
+                  <p>{t('simulation.transcriptPlaceholder')}</p>
                 </div>
               ) : (
                 messages.filter(m => m.role !== 'system').map((msg, i) => (

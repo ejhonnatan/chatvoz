@@ -1,5 +1,6 @@
 import { useBlinkAuth } from '@blinkdotnew/react';
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { blink } from './lib/blink';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { DashboardPage } from './pages/DashboardPage';
@@ -13,6 +14,7 @@ import { Phone, CheckCircle2, ListFilter, PlayCircle } from 'lucide-react';
 function App() {
   const { isAuthenticated, isLoading, user } = useBlinkAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const { t } = useTranslation();
 
   if (isLoading) {
     return (
@@ -31,17 +33,16 @@ function App() {
               <Phone className="h-12 w-12" />
             </div>
           </div>
-          <h1 className="mb-2 text-4xl font-bold tracking-tight">Vocal Survey Bot</h1>
+          <h1 className="mb-2 text-4xl font-bold tracking-tight">{t('landing.title')}</h1>
           <p className="mb-8 text-muted-foreground">
-            Make automated calls with AI-powered interactive voice surveys.
-            Manage contacts, build survey flows, and analyze results in real-time.
+            {t('landing.subtitle')}
           </p>
           <Button 
             size="lg" 
             className="w-full text-lg" 
             onClick={() => blink.auth.login()}
           >
-            Sign in to Start
+            {t('landing.signInButton')}
           </Button>
         </div>
       </div>
@@ -66,13 +67,15 @@ function App() {
   };
 
   return (
-    <DashboardLayout 
-      currentPage={currentPage} 
-      onPageChange={setCurrentPage}
-      user={user}
-    >
-      {renderPage()}
-    </DashboardLayout>
+    <Suspense fallback={<div className="h-screen flex items-center justify-center">{t('common.loading')}</div>}>
+      <DashboardLayout 
+        currentPage={currentPage} 
+        onPageChange={setCurrentPage}
+        user={user}
+      >
+        {renderPage()}
+      </DashboardLayout>
+    </Suspense>
   );
 }
 

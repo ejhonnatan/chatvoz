@@ -2,8 +2,10 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { Toaster } from 'react-hot-toast'
 import { BlinkProvider, BlinkAuthProvider } from '@blinkdotnew/react'
+import { ThemeProvider } from 'next-themes'
 import App from './App'
 import './index.css'
+import './lib/i18n'
 
 function getProjectId(): string {
   const envId = import.meta.env.VITE_BLINK_PROJECT_ID
@@ -21,8 +23,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       publishableKey={import.meta.env.VITE_BLINK_PUBLISHABLE_KEY}
     >
       <BlinkAuthProvider>
-        <Toaster position="top-right" />
-        <App />
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <Toaster position="top-right" />
+          <App />
+        </ThemeProvider>
       </BlinkAuthProvider>
     </BlinkProvider>
   </React.StrictMode>,

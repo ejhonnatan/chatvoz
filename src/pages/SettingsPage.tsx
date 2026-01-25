@@ -5,8 +5,13 @@ import {
   Globe, 
   Volume2, 
   CreditCard,
-  Phone
+  Phone,
+  Moon,
+  Sun,
+  Languages
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { useTheme } from 'next-themes';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -21,18 +26,21 @@ import {
 } from '../components/ui/select';
 
 export function SettingsPage() {
+  const { t, i18n } = useTranslation();
+  const { theme, setTheme } = useTheme();
+
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">Manage your account preferences and system configurations.</p>
+        <h1 className="text-3xl font-bold tracking-tight">{t('settings.title')}</h1>
+        <p className="text-muted-foreground">{t('settings.subtitle')}</p>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Profile Information</CardTitle>
+              <CardTitle>{t('settings.profileTitle')}</CardTitle>
               <CardDescription>Update your personal details and how others see you.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -51,27 +59,46 @@ export function SettingsPage() {
                 <Input id="email" type="email" placeholder="john@example.com" disabled />
                 <p className="text-[10px] text-muted-foreground">Email cannot be changed once the account is created.</p>
               </div>
-              <Button>Save Changes</Button>
+              <Button>{t('common.save')}</Button>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Voice & Telephony</CardTitle>
+              <CardTitle>{t('settings.voiceTitle')}</CardTitle>
               <CardDescription>Configure your voice models and calling preferences.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>Recording Consent</Label>
-                  <p className="text-sm text-muted-foreground">Automatically play a recording consent message at the start of each call.</p>
+                  <Label>{t('settings.darkTheme')}</Label>
+                  <p className="text-sm text-muted-foreground">Switch between light and dark mode.</p>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={theme === 'dark'} 
+                  onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')} 
+                />
+              </div>
+
+              <div className="flex items-center justify-between border-t pt-6">
+                <div className="space-y-0.5">
+                  <Label>{t('settings.language')}</Label>
+                  <p className="text-sm text-muted-foreground">Select the language for the dashboard interface.</p>
+                </div>
+                <Select value={i18n.language} onValueChange={(val) => i18n.changeLanguage(val)}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="es">Español</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2 border-t pt-6">
                 <div className="space-y-2">
-                  <Label>Default AI Voice</Label>
+                  <Label>{t('settings.defaultVoice')}</Label>
                   <Select defaultValue="nova">
                     <SelectTrigger>
                       <SelectValue placeholder="Select a voice" />
@@ -86,7 +113,7 @@ export function SettingsPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Speech Language</Label>
+                  <Label>{t('settings.voiceLanguage')}</Label>
                   <Select defaultValue="en">
                     <SelectTrigger>
                       <SelectValue placeholder="Select a language" />
@@ -115,7 +142,7 @@ export function SettingsPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Subscription Plan</CardTitle>
+              <CardTitle>{t('settings.subscription')}</CardTitle>
               <CardDescription>You are currently on the Pro plan.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, ClipboardList, MoreVertical, Play, Edit, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { blink } from '../lib/blink';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -25,6 +26,7 @@ interface Survey {
 }
 
 export function SurveysPage() {
+  const { t } = useTranslation();
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -43,7 +45,7 @@ export function SurveysPage() {
       setSurveys(data);
     } catch (error) {
       console.error('Failed to fetch surveys:', error);
-      toast.error('Failed to load surveys');
+      toast.error(t('common.loadingError'));
     } finally {
       setIsLoading(false);
     }
@@ -51,7 +53,7 @@ export function SurveysPage() {
 
   const handleCreate = async () => {
     if (!newName || !newPrompt) {
-      toast.error('Please fill in all fields');
+      toast.error(t('surveys.fillAllFieldsError'));
       return;
     }
 
@@ -62,25 +64,25 @@ export function SurveysPage() {
         userId: (await blink.auth.me())?.id,
         status: 'draft'
       });
-      toast.success('Survey created successfully');
+      toast.success(t('surveys.createSuccess'));
       setIsCreateOpen(false);
       setNewName('');
       setNewPrompt('');
       fetchSurveys();
     } catch (error) {
       console.error('Failed to create survey:', error);
-      toast.error('Failed to create survey');
+      toast.error(t('surveys.createError'));
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this survey?')) return;
+    if (!confirm(t('surveys.deleteConfirm'))) return;
     try {
       await blink.db.surveys.delete(id);
-      toast.success('Survey deleted');
+      toast.success(t('surveys.deleteSuccess'));
       fetchSurveys();
     } catch (error) {
-      toast.error('Failed to delete survey');
+      toast.error(t('surveys.deleteError'));
     }
   };
 
@@ -88,35 +90,35 @@ export function SurveysPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Surveys</h1>
-          <p className="text-muted-foreground">Manage your voice survey flows and AI prompts.</p>
+          <h1 className="text-3xl font-bold tracking-tight">{t('surveys.title')}</h1>
+          <p className="text-muted-foreground">{t('surveys.subtitle')}</p>
         </div>
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="h-4 w-4" />
-              New Survey
+              {t('surveys.newSurvey')}
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[525px]">
             <DialogHeader>
-              <DialogTitle>Create New Survey</DialogTitle>
+              <DialogTitle>{t('surveys.createTitle')}</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="name">Survey Name</Label>
+                <Label htmlFor="name">{t('surveys.nameLabel')}</Label>
                 <Input 
                   id="name" 
-                  placeholder="e.g. Product Feedback Q1" 
+                  placeholder={t('surveys.namePlaceholder')} 
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="prompt">AI Instructions (System Prompt)</Label>
+                <Label htmlFor="prompt">{t('surveys.promptLabel')}</Label>
                 <Textarea 
                   id="prompt" 
-                  placeholder="Tell the AI how to conduct the survey, what questions to ask, and how to behave." 
+                  placeholder={t('surveys.promptPlaceholder')} 
                   className="h-48"
                   value={newPrompt}
                   onChange={(e) => setNewPrompt(e.target.value)}
@@ -124,8 +126,8 @@ export function SurveysPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate}>Create Survey</Button>
+              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>{t('common.cancel')}</Button>
+              <Button onClick={handleCreate}>{t('common.create')}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -143,9 +145,9 @@ export function SurveysPage() {
       ) : surveys.length === 0 ? (
         <div className="flex h-64 flex-col items-center justify-center rounded-lg border border-dashed text-center">
           <ClipboardList className="mb-4 h-12 w-12 text-muted-foreground/40" />
-          <h3 className="text-lg font-medium">No surveys yet</h3>
-          <p className="mb-4 text-sm text-muted-foreground">Create your first survey to get started.</p>
-          <Button variant="outline" onClick={() => setIsCreateOpen(true)}>Create Survey</Button>
+          <h3 className="text-lg font-medium">{t('surveys.noSurveys')}</h3>
+          <p className="mb-4 text-sm text-muted-foreground">{t('surveys.noSurveysSub')}</p>
+          <Button variant="outline" onClick={() => setIsCreateOpen(true)}>{t('surveys.newSurvey')}</Button>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -163,7 +165,7 @@ export function SurveysPage() {
                     "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
                     survey.status === 'active' ? "bg-emerald-100 text-emerald-800" : "bg-zinc-100 text-zinc-800"
                   )}>
-                    {survey.status}
+                    {survey.status === 'active' ? t('common.active') : t('common.draft')}
                   </span>
                 </div>
               </CardHeader>
@@ -179,7 +181,7 @@ export function SurveysPage() {
                     </Button>
                     <Button variant="ghost" size="sm" className="h-8 gap-1">
                       <Edit className="h-3 w-3" />
-                      Edit
+                      {t('common.edit')}
                     </Button>
                   </div>
                   <Button 

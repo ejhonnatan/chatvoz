@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Users, Upload, Search, Trash2, Filter, MoreHorizontal, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { blink } from '../lib/blink';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -34,6 +35,7 @@ interface Survey {
 }
 
 export function ContactsPage() {
+  const { t } = useTranslation();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [selectedSurvey, setSelectedSurvey] = useState<string>('all');
@@ -65,7 +67,7 @@ export function ContactsPage() {
     if (!file) return;
 
     if (selectedSurvey === 'all') {
-      toast.error('Please select a survey first');
+      toast.error(t('contacts.selectSurveyError'));
       return;
     }
 
@@ -75,7 +77,7 @@ export function ContactsPage() {
       const numbers = text.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
       
       if (numbers.length === 0) {
-        toast.error('No numbers found in file');
+        toast.error(t('contacts.noNumbersError'));
         return;
       }
 
@@ -91,10 +93,10 @@ export function ContactsPage() {
 
       try {
         await blink.db.contacts.createMany(contactsToCreate);
-        toast.success(`Imported ${numbers.length} contacts`);
+        toast.success(t('contacts.importSuccess', { count: numbers.length }));
         fetchData();
       } catch (error) {
-        toast.error('Failed to import contacts');
+        toast.error(t('contacts.importError'));
       }
     };
     reader.readAsText(file);
@@ -103,10 +105,10 @@ export function ContactsPage() {
   const handleDelete = async (id: string) => {
     try {
       await blink.db.contacts.delete(id);
-      toast.success('Contact removed');
+      toast.success(t('contacts.deleteSuccess'));
       fetchData();
     } catch (error) {
-      toast.error('Failed to remove contact');
+      toast.error(t('contacts.deleteError'));
     }
   };
 
@@ -132,8 +134,8 @@ export function ContactsPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Contacts</h1>
-          <p className="text-muted-foreground">Manage your call list and target numbers.</p>
+          <h1 className="text-3xl font-bold tracking-tight">{t('contacts.title')}</h1>
+          <p className="text-muted-foreground">{t('contacts.subtitle')}</p>
         </div>
         <div className="flex gap-4">
           <div className="relative">
@@ -146,7 +148,7 @@ export function ContactsPage() {
             />
             <Button variant="outline" className="gap-2" onClick={() => document.getElementById('csv-upload')?.click()}>
               <Upload className="h-4 w-4" />
-              Upload CSV
+              {t('contacts.uploadCsv')}
             </Button>
           </div>
         </div>
@@ -156,7 +158,7 @@ export function ContactsPage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input 
-            placeholder="Search numbers..." 
+            placeholder={t('contacts.searchPlaceholder')} 
             className="pl-9"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -164,10 +166,10 @@ export function ContactsPage() {
         </div>
         <Select value={selectedSurvey} onValueChange={setSelectedSurvey}>
           <SelectTrigger className="w-full sm:w-[200px]">
-            <SelectValue placeholder="Filter by Survey" />
+            <SelectValue placeholder={t('contacts.filterBySurvey')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Surveys</SelectItem>
+            <SelectItem value="all">{t('contacts.allSurveys')}</SelectItem>
             {surveys.map(s => (
               <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
             ))}
@@ -180,10 +182,10 @@ export function ContactsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Phone Number</TableHead>
-                <TableHead>Survey</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Added</TableHead>
+                <TableHead>{t('contacts.phoneNumber')}</TableHead>
+                <TableHead>{t('common.surveys')}</TableHead>
+                <TableHead>{t('contacts.status')}</TableHead>
+                <TableHead>{t('contacts.added')}</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -201,7 +203,7 @@ export function ContactsPage() {
               ) : filteredContacts.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="h-64 text-center text-muted-foreground">
-                    No contacts found.
+                    {t('common.noResults')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -226,13 +228,13 @@ export function ContactsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>View Results</DropdownMenuItem>
-                          <DropdownMenuItem>Retry Call</DropdownMenuItem>
+                          <DropdownMenuItem>{t('common.viewResults')}</DropdownMenuItem>
+                          <DropdownMenuItem>{t('common.retryCall')}</DropdownMenuItem>
                           <DropdownMenuItem 
                             className="text-destructive"
                             onClick={() => handleDelete(contact.id)}
                           >
-                            Delete
+                            {t('common.delete')}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

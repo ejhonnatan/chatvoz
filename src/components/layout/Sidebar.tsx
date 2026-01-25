@@ -7,6 +7,7 @@ import {
   LogOut,
   Phone
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/utils';
 import { blink } from '../../lib/blink';
 
@@ -15,15 +16,17 @@ interface SidebarProps {
   onPageChange: (page: string) => void;
 }
 
-const navItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'surveys', label: 'Surveys', icon: ClipboardList },
-  { id: 'contacts', label: 'Contacts', icon: Users },
-  { id: 'simulation', label: 'Simulation', icon: Mic2 },
-  { id: 'settings', label: 'Settings', icon: Settings },
-];
-
 export function Sidebar({ currentPage, onPageChange }: SidebarProps) {
+  const { t } = useTranslation();
+
+  const navItems = [
+    { id: 'dashboard', label: t('common.dashboard'), icon: LayoutDashboard },
+    { id: 'surveys', label: t('common.surveys'), icon: ClipboardList },
+    { id: 'contacts', label: t('common.contacts'), icon: Users },
+    { id: 'simulation', label: t('common.simulation'), icon: Mic2 },
+    { id: 'settings', label: t('common.settings'), icon: Settings },
+  ];
+
   return (
     <aside className="flex w-64 flex-col border-r bg-card">
       <div className="flex h-16 items-center gap-2 border-b px-6">
@@ -60,7 +63,7 @@ export function Sidebar({ currentPage, onPageChange }: SidebarProps) {
           className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
           <LogOut className="h-4 w-4" />
-          Sign Out
+          {t('common.signOut')}
         </button>
       </div>
     </aside>
