@@ -87,6 +87,7 @@
     "listening": "Escuchándote",
     "thinking": "Pensando...",
     "goAhead": "Adelante, habla ahora",
+    "stopRecording": "Detener grabación",
     "liveTranscript": "Transcripción en Vivo",
     "transcriptPlaceholder": "La transcripción aparecerá aquí una vez que comience la llamada."
   },
