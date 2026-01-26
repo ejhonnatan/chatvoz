@@ -3,13 +3,10 @@ import {
   Phone, 
   PhoneOff, 
   Mic, 
-  MicOff, 
+  MicOff,
   Volume2, 
-  VolumeX, 
   RefreshCw,
-  PlayCircle,
   MessageSquare,
-  Globe
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { blink } from '../lib/blink';
@@ -31,6 +28,8 @@ interface Survey {
   systemPrompt: string;
 }
 
+type ConversationMessage = { role: 'user' | 'assistant' | 'system'; content: string };
+
 export function SimulationPage() {
   const { t, i18n } = useTranslation();
   const [surveys, setSurveys] = useState<Survey[]>([]);
@@ -39,13 +38,18 @@ export function SimulationPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant' | 'system', content: string }[]>([]);
+  const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [transcription, setTranscription] = useState('');
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const recordingTimeoutRef = useRef<number | null>(null);
+  const messagesRef = useRef(messages);
 
   useEffect(() => {
     fetchSurveys();
@@ -53,6 +57,10 @@ export function SimulationPage() {
       stopStream();
     };
   }, []);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const fetchSurveys = async () => {
     try {
@@ -68,43 +76,32 @@ export function SimulationPage() {
     streamRef.current?.getTracks().forEach(track => track.stop());
     mediaRecorderRef.current?.stop();
   };
-
-  const startCall = async () => {
-    if (!selectedSurvey) {
-      toast.error(t('simulation.chooseSurvey'));
-      return;
+  
+  const clearRecordingTimeout = () => {
+    if (recordingTimeoutRef.current !== null) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
     }
-
-    const survey = surveys.find(s => s.id === selectedSurvey);
-    if (!survey) return;
-
-    setStatus('calling');
-    
-    // Domain-specific system prompt enhancement based on selected language
-    const languageInstruction = i18n.language === 'es' 
-      ? "Please conduct the entire survey in Spanish." 
-      : "Please conduct the entire survey in English.";
-      
-    setMessages([{ role: 'system', content: `${survey.systemPrompt}\n\n${languageInstruction}` }]);
-    
-    // Simulate connection delay
-    setTimeout(async () => {
-      setStatus('connected');
-      // Initial greeting from AI
-      const initialPrompt = i18n.language === 'es' 
-        ? "Saluda y comienza la encuesta de forma natural."
-        : "Say hello and start the survey naturally.";
-      await processAIResponse(initialPrompt);
-    }, 2000);
   };
 
-  const endCall = () => {
-    setStatus('ended');
-    stopStream();
-    setIsRecording(false);
-    setIsSpeaking(false);
-    if (audioRef.current) {
-      audioRef.current.pause();
+  const ensureAudioContext = (): AudioContext | null => {
+    if (audioContextRef.current) return audioContextRef.current;
+    if (typeof window === 'undefined') return null;
+    const AudioConstructor = (window.AudioContext ?? (window as any).webkitAudioContext) as typeof AudioContext | undefined;
+    if (!AudioConstructor) return null;
+    audioContextRef.current = new AudioConstructor();
+    return audioContextRef.current;
+  };
+
+  const resumeAudioContext = async () => {
+    const context = ensureAudioContext();
+    if (!context) return;
+    if (context.state === 'suspended') {
+      try {
+        await context.resume();
+      } catch (error) {
+        console.warn('AudioContext resume failed', error);
+      }
     }
   };
 
@@ -142,32 +139,15 @@ export function SimulationPage() {
     } finally {
       setIsProcessing(false);
     }
+  const cleanupAudioSource = () => {
+    audioSourceRef.current?.disconnect();
+    audioSourceRef.current = null;
   };
 
-  const speak = async (text: string) => {
-    setIsSpeaking(true);
-    try {
-      const { url } = await blink.ai.generateSpeech({
-        text,
-        voice: 'nova',
-        // Optional: you could choose a voice based on language if needed, 
-        // but OpenAI voices like 'nova' are multi-lingual.
-      });
-      
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.onended = () => {
-        setIsSpeaking(false);
-        // After AI finishes speaking, automatically start listening
-        if (status === 'connected') {
-          startRecording();
-        }
-      };
-      await audio.play();
-    } catch (error) {
-      console.error('TTS error:', error);
-      setIsSpeaking(false);
-    }
+  const stopSpeechSynthesis = () => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    speechSynthesisRef.current = null;
   };
 
   const startRecording = async () => {
@@ -187,6 +167,11 @@ export function SimulationPage() {
       recorder.start();
       setIsRecording(true);
       setTranscription('Listening...');
+      recordingTimeoutRef.current = window.setTimeout(() => {
+        if (mediaRecorderRef.current?.state === 'recording') {
+          stopRecording();
+        }
+      }, 6000);
     } catch (error) {
       console.error('Failed to start recording:', error);
       toast.error('Microphone access denied');
@@ -194,7 +179,10 @@ export function SimulationPage() {
   };
 
   const stopRecording = () => {
-    mediaRecorderRef.current?.stop();
+    clearRecordingTimeout();
+    if (mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
     streamRef.current?.getTracks().forEach(track => track.stop());
     setIsRecording(false);
   };
@@ -238,6 +226,153 @@ export function SimulationPage() {
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
+  };
+
+  const speakWithSpeechSynthesis = (text: string) => {
+    return new Promise<void>((resolve) => {
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+        setIsSpeaking(false);
+        resolve();
+        return;
+      }
+
+      const synth = window.speechSynthesis;
+      synth.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = i18n.language === 'es' ? 'es-ES' : 'en-US';
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        speechSynthesisRef.current = null;
+        if (status === 'connected') {
+          startRecording();
+        }
+        resolve();
+      };
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+        speechSynthesisRef.current = null;
+        resolve();
+      };
+      speechSynthesisRef.current = utterance;
+      synth.speak(utterance);
+    });
+  };
+
+  const speak = async (text: string) => {
+    setIsSpeaking(true);
+    cleanupAudioSource();
+    stopSpeechSynthesis();
+    try {
+      await resumeAudioContext();
+      const { url } = await blink.ai.generateSpeech({
+        text,
+        voice: i18n.language === 'es' ? 'echo' : 'nova',
+      });
+      
+      const audio = new Audio(url);
+      audio.crossOrigin = 'anonymous';
+      audioRef.current = audio;
+
+      const context = ensureAudioContext();
+      if (context) {
+        try {
+          const source = context.createMediaElementSource(audio);
+          source.connect(context.destination);
+          audioSourceRef.current = source;
+        } catch (error) {
+          console.warn('Media element source connection failed', error);
+        }
+      }
+      
+      audio.onended = () => {
+        setIsSpeaking(false);
+        cleanupAudioSource();
+        if (status === 'connected') {
+          startRecording();
+        }
+      };
+      audio.onerror = () => {
+        console.warn('Audio playback failed, falling back to speech synthesis.');
+      };
+      await audio.play();
+    } catch (error) {
+      console.error('TTS error:', error);
+      await speakWithSpeechSynthesis(text);
+    }
+  };
+
+  const processAIResponse = async (userText: string, history?: ConversationMessage[]) => {
+    setIsProcessing(true);
+    try {
+      const baseMessages = history ?? messagesRef.current;
+      const requestMessages = [...baseMessages, { role: 'user' as const, content: userText }];
+      setMessages(requestMessages);
+      messagesRef.current = requestMessages;
+
+      const { text } = await blink.ai.generateText({
+        messages: requestMessages,
+        maxTokens: 150
+      });
+
+      const assistantMessage = { role: 'assistant', content: text };
+      setMessages(prev => {
+        const next = [...prev, assistantMessage];
+        messagesRef.current = next;
+        return next;
+      });
+      await speak(text);
+    } catch (error) {
+      console.error('AI Processing error:', error);
+      toast.error('AI processing failed');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const startCall = async () => {
+    await resumeAudioContext();
+    if (!selectedSurvey) {
+      toast.error(t('simulation.chooseSurvey'));
+      return;
+    }
+
+    const survey = surveys.find(s => s.id === selectedSurvey);
+    if (!survey) return;
+
+    setStatus('calling');
+    
+    // Domain-specific system prompt enhancement based on selected language
+    const languageInstruction = i18n.language === 'es' 
+      ? "Please conduct the entire survey in Spanish." 
+      : "Please conduct the entire survey in English.";
+      
+    const initialSystemMessages = [{ role: 'system', content: `${survey.systemPrompt}\n\n${languageInstruction}` }];
+    setMessages(initialSystemMessages);
+    messagesRef.current = initialSystemMessages;
+    
+    // Simulate connection delay
+    setTimeout(async () => {
+      setStatus('connected');
+      // Initial greeting from AI
+      const initialPrompt = i18n.language === 'es' 
+        ? "Saluda y comienza la encuesta de forma natural."
+        : "Say hello and start the survey naturally.";
+      await processAIResponse(initialPrompt, initialSystemMessages);
+    }, 2000);
+  };
+
+  const endCall = () => {
+    setStatus('ended');
+    stopStream();
+    setIsRecording(false);
+    setIsSpeaking(false);
+    stopSpeechSynthesis();
+    cleanupAudioSource();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
   };
 
   return (
@@ -333,11 +468,18 @@ export function SimulationPage() {
                     </p>
                   </div>
 
-                  {status === 'connected' && !isSpeaking && !isRecording && !isProcessing && (
-                    <Button onClick={startRecording} variant="outline" className="gap-2">
-                      <Mic className="h-4 w-4" />
-                      {t('simulation.goAhead')}
-                    </Button>
+                  {status === 'connected' && !isSpeaking && !isProcessing && (
+                    isRecording ? (
+                      <Button onClick={stopRecording} variant="destructive" className="gap-2">
+                        <MicOff className="h-4 w-4" />
+                        {t('simulation.stopRecording')}
+                      </Button>
+                    ) : (
+                      <Button onClick={startRecording} variant="outline" className="gap-2">
+                        <Mic className="h-4 w-4" />
+                        {t('simulation.goAhead')}
+                      </Button>
+                    )
                   )}
                 </div>
               </CardContent>
