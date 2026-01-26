@@ -87,6 +87,7 @@
     "listening": "Listening to you",
     "thinking": "Thinking...",
     "goAhead": "Go ahead, speak now",
+    "stopRecording": "Stop recording",
     "liveTranscript": "Live Transcript",
     "transcriptPlaceholder": "Transcript will appear here once the call starts."
   },
