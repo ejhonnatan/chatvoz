@@ -108,6 +108,21 @@ export function SimulationPage() {
     }
   };
 
+  const getBlinkErrorMessage = (error: unknown, fallbackMessage: string) => {
+    if (!error || typeof error !== 'object') {
+      return fallbackMessage;
+    }
+
+    const message = 'message' in error && typeof error.message === 'string' ? error.message : '';
+    const status = 'status' in error && typeof error.status === 'number' ? error.status : undefined;
+
+    if (status === 402 || message.toLowerCase().includes('insufficient credits')) {
+      return t('simulation.aiInsufficientCredits');
+    }
+
+    return fallbackMessage;
+  };
+
   const processAIResponse = async (userText: string) => {
     setIsProcessing(true);
     try {
@@ -123,7 +138,7 @@ export function SimulationPage() {
       await speak(text);
     } catch (error) {
       console.error('AI Processing error:', error);
-      toast.error('AI processing failed');
+      toast.error(getBlinkErrorMessage(error, t('simulation.aiProcessingFailed')));
     } finally {
       setIsProcessing(false);
     }
@@ -209,7 +224,7 @@ export function SimulationPage() {
       }
     } catch (error) {
       console.error('Transcription failed:', error);
-      toast.error('Failed to transcribe audio');
+      toast.error(getBlinkErrorMessage(error, t('simulation.transcriptionFailed')));
     } finally {
       setIsProcessing(false);
       chunksRef.current = [];
