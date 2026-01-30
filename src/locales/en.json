@@ -19,7 +19,8 @@
     "noResults": "No results found.",
     "viewResults": "View Results",
     "retryCall": "Retry Call",
-    "loadingError": "Failed to load data"
+    "loadingError": "Failed to load data",
+    "updateError": "Failed to update"
   },
   "landing": {
     "title": "Vocal Survey Bot",
@@ -53,7 +54,9 @@
     "createError": "Failed to create survey",
     "deleteConfirm": "Are you sure you want to delete this survey?",
     "deleteSuccess": "Survey deleted",
-    "deleteError": "Failed to delete survey"
+    "deleteError": "Failed to delete survey",
+    "activated": "Survey activated",
+    "deactivated": "Survey deactivated"
   },
   "contacts": {
     "title": "Contacts",

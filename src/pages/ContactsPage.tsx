@@ -13,6 +13,13 @@ import {
   DropdownMenuTrigger 
 } from '../components/ui/dropdown-menu';
 import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "../components/ui/dialog";
+import { 
   Select,
   SelectContent,
   SelectItem,
@@ -41,6 +48,7 @@ export function ContactsPage() {
   const [selectedSurvey, setSelectedSurvey] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewResult, setViewResult] = useState<any | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -109,6 +117,22 @@ export function ContactsPage() {
       fetchData();
     } catch (error) {
       toast.error(t('contacts.deleteError'));
+    }
+  };
+
+  const handleViewResult = async (contactId: string) => {
+    try {
+      const results = await blink.db.surveyResults.list({
+        where: { contact_id: contactId },
+        limit: 1
+      });
+      if (results.length > 0) {
+        setViewResult(results[0]);
+      } else {
+        toast.error('No results found for this contact');
+      }
+    } catch (error) {
+      toast.error('Failed to load result');
     }
   };
 
@@ -228,7 +252,9 @@ export function ContactsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>{t('common.viewResults')}</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleViewResult(contact.id)} disabled={contact.status !== 'called'}>
+                            {t('common.viewResults')}
+                          </DropdownMenuItem>
                           <DropdownMenuItem>{t('common.retryCall')}</DropdownMenuItem>
                           <DropdownMenuItem 
                             className="text-destructive"
@@ -246,6 +272,56 @@ export function ContactsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={!!viewResult} onOpenChange={(open) => !open && setViewResult(null)}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Survey Result</DialogTitle>
+            <DialogDescription>
+              Transcript and analysis for contact result.
+            </DialogDescription>
+          </DialogHeader>
+          {viewResult && (
+            <div className="flex-1 overflow-y-auto space-y-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Sentiment</p>
+                  <span className={cn(
+                    "rounded-full px-2 py-0.5 text-xs font-bold uppercase",
+                    viewResult.sentiment === 'positive' ? "bg-emerald-100 text-emerald-800" : 
+                    viewResult.sentiment === 'negative' ? "bg-rose-100 text-rose-800" : 
+                    "bg-zinc-100 text-zinc-800"
+                  )}>
+                    {viewResult.sentiment}
+                  </span>
+                </div>
+                <div className="space-y-1 text-right">
+                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Date</p>
+                  <p className="text-xs font-mono">{new Date(viewResult.createdAt).toLocaleString()}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Summary</p>
+                <div className="rounded-lg bg-secondary/50 p-3 text-sm italic">
+                  {viewResult.summary}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Full Transcript</p>
+                <div className="rounded-lg border p-4 font-mono text-xs whitespace-pre-wrap leading-relaxed">
+                  {viewResult.transcript}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
+}
+
+function cn(...classes: any[]) {
+  return classes.filter(Boolean).join(' ');
 }

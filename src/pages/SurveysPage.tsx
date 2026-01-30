@@ -51,6 +51,17 @@ export function SurveysPage() {
     }
   };
 
+  const handleToggleStatus = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'active' ? 'draft' : 'active';
+    try {
+      await blink.db.surveys.update(id, { status: newStatus });
+      toast.success(newStatus === 'active' ? t('surveys.activated') : t('surveys.deactivated'));
+      fetchSurveys();
+    } catch (error) {
+      toast.error(t('common.updateError'));
+    }
+  };
+
   const handleCreate = async () => {
     if (!newName || !newPrompt) {
       toast.error(t('surveys.fillAllFieldsError'));
@@ -161,12 +172,19 @@ export function SurveysPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className={cn(
-                    "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
-                    survey.status === 'active' ? "bg-emerald-100 text-emerald-800" : "bg-zinc-100 text-zinc-800"
-                  )}>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className={cn(
+                      "h-6 rounded-full px-2 py-0 text-[10px] font-bold uppercase transition-colors",
+                      survey.status === 'active' 
+                        ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200" 
+                        : "bg-zinc-100 text-zinc-800 hover:bg-zinc-200"
+                    )}
+                    onClick={() => handleToggleStatus(survey.id, survey.status)}
+                  >
                     {survey.status === 'active' ? t('common.active') : t('common.draft')}
-                  </span>
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent>

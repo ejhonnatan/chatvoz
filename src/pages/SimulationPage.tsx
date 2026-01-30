@@ -33,7 +33,9 @@ type ConversationMessage = { role: 'user' | 'assistant' | 'system'; content: str
 export function SimulationPage() {
   const { t, i18n } = useTranslation();
   const [surveys, setSurveys] = useState<Survey[]>([]);
+  const [contacts, setContacts] = useState<any[]>([]);
   const [selectedSurvey, setSelectedSurvey] = useState<string>('');
+  const [selectedContact, setSelectedContact] = useState<string>('simulation');
   const [status, setStatus] = useState<'idle' | 'calling' | 'connected' | 'ended'>('idle');
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -59,6 +61,12 @@ export function SimulationPage() {
   }, []);
 
   useEffect(() => {
+    if (selectedSurvey) {
+      fetchContacts(selectedSurvey);
+    }
+  }, [selectedSurvey]);
+
+  useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
 
@@ -69,6 +77,17 @@ export function SimulationPage() {
       if (data.length > 0) setSelectedSurvey(data[0].id);
     } catch (error) {
       toast.error(t('common.loading'));
+    }
+  };
+
+  const fetchContacts = async (surveyId: string) => {
+    try {
+      const data = await blink.db.contacts.list({
+        where: { surveyId, status: 'pending' }
+      });
+      setContacts(data as any[]);
+    } catch (error) {
+      console.error('Failed to fetch contacts:', error);
     }
   };
 
@@ -327,8 +346,54 @@ export function SimulationPage() {
     }, 2000);
   };
 
+  const saveResults = async () => {
+    if (selectedContact === 'simulation' || !selectedSurvey) return;
+
+    try {
+      const assistantMessages = messages.filter(m => m.role === 'assistant').map(m => m.content).join('\n');
+      const userMessages = messages.filter(m => m.role === 'user').map(m => m.content).join('\n');
+      
+      const fullTranscript = messages
+        .filter(m => m.role !== 'system')
+        .map(m => `${m.role === 'assistant' ? 'AI' : 'User'}: ${m.content}`)
+        .join('\n');
+
+      // Simple sentiment analysis based on keywords
+      const positiveWords = ['yes', 'good', 'great', 'happy', 'si', 'bien', 'bueno', 'excelente'];
+      const negativeWords = ['no', 'bad', 'unhappy', 'mal', 'malo', 'triste'];
+      
+      let score = 0;
+      userMessages.toLowerCase().split(/\s+/).forEach(word => {
+        if (positiveWords.includes(word)) score++;
+        if (negativeWords.includes(word)) score--;
+      });
+
+      const sentiment = score > 0 ? 'positive' : score < 0 ? 'negative' : 'neutral';
+
+      const user = await blink.auth.me();
+      if (!user) return;
+
+      await blink.db.surveyResults.create({
+        userId: user.id,
+        surveyId: selectedSurvey,
+        contactId: selectedContact,
+        transcript: fullTranscript,
+        sentiment: sentiment,
+        completed: 1,
+        summary: `Sentiment: ${sentiment}. User said: ${userMessages.slice(0, 100)}...`
+      });
+
+      await blink.db.contacts.update(selectedContact, { status: 'called' });
+      toast.success('Survey result saved successfully');
+      fetchContacts(selectedSurvey);
+    } catch (error) {
+      console.error('Failed to save results:', error);
+    }
+  };
+
   const endCall = () => {
     setStatus('ended');
+    saveResults();
     stopStream();
     setIsRecording(false);
     setIsSpeaking(false);
@@ -368,6 +433,22 @@ export function SimulationPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Select Contact</label>
+                <Select value={selectedContact} onValueChange={setSelectedContact} disabled={status !== 'idle' && status !== 'ended'}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose contact (Optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="simulation">Simulation Mode (No Save)</SelectItem>
+                    {contacts.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.phoneNumber}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <Button 
                 className="w-full h-12 text-lg font-semibold" 
                 onClick={status === 'connected' || status === 'calling' ? endCall : startCall}

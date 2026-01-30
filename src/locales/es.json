@@ -19,7 +19,8 @@
     "noResults": "No se encontraron resultados.",
     "viewResults": "Ver Resultados",
     "retryCall": "Reintentar Llamada",
-    "loadingError": "Error al cargar datos"
+    "loadingError": "Error al cargar datos",
+    "updateError": "Error al actualizar"
   },
   "landing": {
     "title": "Bot de Encuestas Vocales",
@@ -53,7 +54,9 @@
     "createError": "Error al crear la encuesta",
     "deleteConfirm": "¿Estás seguro de que quieres eliminar esta encuesta?",
     "deleteSuccess": "Encuesta eliminada",
-    "deleteError": "Error al eliminar la encuesta"
+    "deleteError": "Error al eliminar la encuesta",
+    "activated": "Encuesta activada",
+    "deactivated": "Encuesta desactivada"
   },
   "contacts": {
     "title": "Contactos",
