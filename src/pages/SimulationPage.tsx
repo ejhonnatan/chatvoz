@@ -52,6 +52,7 @@ export function SimulationPage() {
   const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
   const recordingTimeoutRef = useRef<number | null>(null);
   const messagesRef = useRef(messages);
+  const statusRef = useRef(status);
 
   useEffect(() => {
     fetchSurveys();
@@ -192,7 +193,7 @@ export function SimulationPage() {
         // If silence, try listening again or prompt user
         setTranscription('Silence detected. Try again.');
         setTimeout(() => {
-          if (status === 'connected') startRecording();
+          if (statusRef.current === 'connected') startRecording();
         }, 1500);
       }
     } catch (error) {
@@ -228,7 +229,7 @@ export function SimulationPage() {
       utterance.onend = () => {
         setIsSpeaking(false);
         speechSynthesisRef.current = null;
-        if (status === 'connected') {
+        if (statusRef.current === 'connected') {
           startRecording();
         }
         resolve();
@@ -272,17 +273,30 @@ export function SimulationPage() {
       audio.onended = () => {
         setIsSpeaking(false);
         cleanupAudioSource();
-        if (status === 'connected') {
+        if (statusRef.current === 'connected') {
           startRecording();
         }
       };
       audio.onerror = () => {
         console.warn('Audio playback failed, falling back to speech synthesis.');
       };
-      await audio.play();
-    } catch (error) {
-      console.error('TTS error:', error);
-      await speakWithSpeechSynthesis(text);
+
+      if (statusRef.current !== 'connected') return;
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        await playPromise;
+      }
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log('Audio playback aborted');
+        return;
+      }
+      
+      if (statusRef.current === 'connected') {
+        console.error('TTS error:', error);
+        await speakWithSpeechSynthesis(text);
+      }
     }
   };
 
@@ -325,6 +339,7 @@ export function SimulationPage() {
     if (!survey) return;
 
     setStatus('calling');
+    statusRef.current = 'calling';
     
     // Domain-specific system prompt enhancement based on selected language
     const languageInstruction = i18n.language === 'es' 
@@ -338,6 +353,7 @@ export function SimulationPage() {
     // Simulate connection delay
     setTimeout(async () => {
       setStatus('connected');
+      statusRef.current = 'connected';
       // Initial greeting from AI
       const initialPrompt = i18n.language === 'es' 
         ? "Saluda y comienza la encuesta de forma natural."
@@ -393,6 +409,7 @@ export function SimulationPage() {
 
   const endCall = () => {
     setStatus('ended');
+    statusRef.current = 'ended';
     saveResults();
     stopStream();
     setIsRecording(false);
