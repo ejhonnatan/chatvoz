@@ -92,7 +92,10 @@
     "goAhead": "Go ahead, speak now",
     "stopRecording": "Stop recording",
     "liveTranscript": "Live Transcript",
-    "transcriptPlaceholder": "Transcript will appear here once the call starts."
+    "transcriptPlaceholder": "Transcript will appear here once the call starts.",
+    "aiProcessingFailed": "AI processing failed.",
+    "aiInsufficientCredits": "Insufficient Blink AI credits. Please upgrade your plan or add credits.",
+    "transcriptionFailed": "Failed to transcribe audio."
   },
   "settings": {
     "title": "Settings",
